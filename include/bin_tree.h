@@ -3,6 +3,7 @@
 
 #include <lc_config.h>
 #include <construct.h>
+#include <cstddef>
 
 __LC_NAMESPACE_BEGIN
 
@@ -27,85 +28,36 @@ template <typename Value>
 struct _BinaryTreeNode : public _BinaryTreeNodeBase {
     typedef _BinaryTreeNode<Value> *_Link_type;
     Value _M_value_field;
+    bool _M_is_header;
 };
+
+template <typename Value, typename Ref, typename Ptr>
+class bt_iterator;
 
 template <typename T, typename A = std::allocator<_BinaryTreeNode<T>> >
 class BinaryTree {
 public:
     typedef A allocator_type;
-    typedef typename A::value_type value_type; 
-    typedef typename A::reference reference;
-    typedef typename A::const_reference const_reference;
-    typedef typename A::difference_type difference_type;
-    typedef typename A::size_type size_type;
+    typedef T value_type;
+    typedef T& reference;
+    typedef const T& const_reference;
+    typedef T* pointer;
+    typedef const T* const_pointer;
+    typedef ptrdiff_t difference_type;
+    typedef size_t size_type;
     typedef typename _BinaryTreeNode<T>::_Link_type _Link_type;
     typedef _BinaryTreeNodeBase *_Base_ptr;
 
-    class iterator { 
-    public:
-        typedef typename A::difference_type difference_type;
-        typedef typename A::value_type value_type;
-        typedef typename A::reference reference;
-        typedef typename A::pointer pointer;
-        typedef std::bidirectional_iterator_tag iterator_category; //or another tag
 
-        iterator();
-        iterator(const iterator&);
-        ~iterator();
-
-        iterator& operator=(const iterator&);
-        bool operator==(const iterator&) const;
-        bool operator!=(const iterator&) const;
-        bool operator<(const iterator&) const; //optional
-        bool operator>(const iterator&) const; //optional
-        bool operator<=(const iterator&) const; //optional
-        bool operator>=(const iterator&) const; //optional
-
-        iterator& operator++();
-        iterator operator++(int); //optional
-        iterator& operator--(); //optional
-        iterator operator--(int); //optional
-
-        reference operator*() const;
-        pointer operator->() const;
-    };
-    class const_iterator {
-    public:
-        typedef typename A::difference_type difference_type;
-        typedef typename A::value_type value_type;
-        typedef typename A::reference const_reference;
-        typedef typename A::pointer const_pointer;
-        typedef std::bidirectional_iterator_tag iterator_category; //or another tag
-
-        const_iterator ();
-        const_iterator (const const_iterator&);
-        const_iterator (const iterator&);
-        ~const_iterator();
-
-        const_iterator& operator=(const const_iterator&);
-        bool operator==(const const_iterator&) const;
-        bool operator!=(const const_iterator&) const;
-        bool operator<(const const_iterator&) const; //optional
-        bool operator>(const const_iterator&) const; //optional
-        bool operator<=(const const_iterator&) const; //optional
-        bool operator>=(const const_iterator&) const; //optional
-
-        const_iterator& operator++();
-        const_iterator operator++(int); //optional
-        const_iterator& operator--(); //optional
-        const_iterator operator--(int); //optional
-
-        const_reference operator*() const;
-        const_pointer operator->() const;
-    };
-
+    typedef bt_iterator<value_type, reference, pointer> iterator;
+    typedef bt_iterator<value_type, const_reference, const_pointer> const_iterator;
     typedef std::reverse_iterator<iterator> reverse_iterator; //optional
     typedef std::reverse_iterator<const_iterator> const_reverse_iterator; //optional
 
 public:
     BinaryTree() : _M_header(_M_get_node()), _M_node_count(0), _M_alloc() { _M_empty_initialize(); }
     BinaryTree(const BinaryTree&);
-    ~BinaryTree() { clear(); }
+    ~BinaryTree() { clear(); _M_put_node(_M_header); }
 
     BinaryTree& operator=(const BinaryTree&);
     bool operator==(const BinaryTree&) const;
@@ -115,29 +67,69 @@ public:
     bool operator<=(const BinaryTree&) const; //optional
     bool operator>=(const BinaryTree&) const; //optional
 
-    iterator begin();
-    const_iterator begin() const;
-    const_iterator cbegin() const;
-    iterator end();
-    const_iterator end() const;
-    const_iterator cend() const;
-    reverse_iterator rbegin(); //optional
-    const_reverse_iterator rbegin() const; //optional
-    const_reverse_iterator crbegin() const; //optional
-    reverse_iterator rend(); //optional
-    const_reverse_iterator rend() const; //optional
-    const_reverse_iterator crend() const; //optional
+    iterator begin() { return _M_leftmost(); }
+    const_iterator begin() const { return _M_leftmost(); }
+    const_iterator cbegin() const { return _M_leftmost(); }
+    iterator end() { return _M_header; }
+    const_iterator end() const { return _M_header; }
+    const_iterator cend() const { return _M_header; }
+    reverse_iterator rbegin() { //optional
+        return reverse_iterator(end());
+    }
+    const_reverse_iterator rbegin() const { //optional
+        return reverse_iterator(end());
+    }
+    const_reverse_iterator crbegin() const { //optional
+        return reverse_iterator(end());
+    }
+    reverse_iterator rend() { //optional
+        return reverse_iterator(begin());
+    }
+    const_reverse_iterator rend() const { //optional
+        return reverse_iterator(begin());
+    }
+    const_reverse_iterator crend() const { //optional
+        return reverse_iterator(cbegin());
+    }
 
     template<class ...Args>
     iterator emplace(const_iterator, Args...); //optional
-    iterator insert(const_iterator, const T&); //optional
-    iterator insert(const_iterator, T&&); //optional
-    iterator insert(const_iterator, size_type, T&); //optional
-    template<class iter>
-    iterator insert(const_iterator, iter, iter); //optional
-    iterator insert(const_iterator, std::initializer_list<T>); //optional
-    iterator erase(const_iterator); //optional
-    iterator erase(const_iterator, const_iterator); //optional
+    iterator insert(iterator pos, const T &v) {//optional
+        _Link_type x = (_Link_type)pos._M_node;
+        _Link_type n = _M_create_node(v);
+        _S_left(n) = nullptr;
+        _S_right(n) = nullptr;
+        n->_M_is_header = false;
+        if (_M_root()) {
+            if (x == _M_leftmost()) {
+                _S_left(x) = n;
+                _M_leftmost() = n;
+            } else if (x->_M_is_header) {
+                x = (_Link_type)x->_M_right;
+                _S_right(x) = n;
+                _M_rightmost() = n;
+            } else {
+                while (_S_left(x))
+                    x = _S_left(x);
+                _S_left(x) = n;
+            }
+            _S_parent(n) = x;
+        } else {
+            _M_root() = n;
+            _M_leftmost() = n;
+            _M_rightmost() = n;
+            _S_parent(n) = _M_header;
+        }
+        ++_M_node_count;
+        return iterator(n);
+    }
+    // iterator insert(const_iterator, T&&); //optional
+    // iterator insert(const_iterator, size_type, T&); //optional
+    // template<class iter>
+    // iterator insert(const_iterator, iter, iter); //optional
+    // iterator insert(const_iterator, std::initializer_list<T>); //optional
+    // iterator erase(const_iterator); //optional
+    // iterator erase(const_iterator, const_iterator); //optional
     void clear() { //optional
         if (_M_node_count != 0) {
             _M_erase(_M_root());
@@ -149,9 +141,9 @@ public:
     }
 
     void swap(BinaryTree&);
-    size_type size();
-    size_type max_size();
-    bool empty();
+    size_type size() { return _M_node_count; }
+    size_type max_size() { return size_type(-1); }
+    bool empty() const { return _M_node_count == 0; }
     allocator_type get_allocator() const { return _M_alloc; } //optional
 
 protected:
@@ -170,6 +162,7 @@ protected:
         _Link_type tmp = _M_create_node(x->_M_value_field);
         tmp->_M_left = nullptr;
         tmp->_M_right = nullptr;
+        tmp->_M_is_header = false;
         return tmp;
     }
     void _M_destroy_node(_Link_type p) {
@@ -224,6 +217,7 @@ protected:
 
 private:
     void _M_empty_initialize() {
+        _M_header->_M_is_header = true;
         _M_root() = 0;
         _M_leftmost() = _M_header;
         _M_rightmost() = _M_header;
@@ -233,6 +227,86 @@ protected:
     _Link_type _M_header;
     size_type _M_node_count;
     allocator_type _M_alloc;
+};
+
+template <typename Value, typename Ref, typename Ptr>
+struct bt_iterator { 
+    typedef Value value_type;
+    typedef Ref reference;
+    typedef ptrdiff_t difference_type;
+    typedef Ptr pointer;
+    typedef std::bidirectional_iterator_tag iterator_category; //or another tag
+    typedef typename _BinaryTreeNode<Value>::_Link_type _Link_type;
+
+    bt_iterator() : _M_node(nullptr) {}
+    bt_iterator(_Link_type x) : _M_node(x) {}
+    bt_iterator(const bt_iterator& it) { _M_node = it._M_node; }
+    // ~iterator();
+
+    // iterator& operator=(const iterator&);
+    friend bool operator==(const bt_iterator &x, const bt_iterator &y) {
+        return x._M_node == y._M_node;
+    }
+    friend bool operator!=(const bt_iterator &x, const bt_iterator &y) {
+        return x._M_node != y._M_node;
+    }
+
+    bt_iterator& operator++() {
+        _M_increment();
+        return *this;
+    }
+    bt_iterator operator++(int) {  //optional
+        bt_iterator tmp = *this;
+        _M_increment();
+        return tmp;
+    }
+    bt_iterator& operator--() { //optional
+        _M_decrement();
+        return *this;
+    }
+    bt_iterator operator--(int) { //optional
+        bt_iterator tmp = *this;
+        _M_decrement();
+        return tmp;
+    }
+
+    reference operator*() const { return _M_node->_M_value_field; }
+    pointer operator->() const { return &(operator*()); }
+
+    void _M_increment() {
+        if (_M_node->_M_right) {
+            _M_node = (_Link_type)_M_node->_M_right;
+            while (_M_node->_M_left)
+                _M_node = (_Link_type)_M_node->_M_left;
+        } else {
+            _Link_type y = (_Link_type)_M_node->_M_parent;
+            while (_M_node == (_Link_type)y->_M_right) {
+                _M_node = y;
+                y = (_Link_type)y->_M_parent;
+            }
+            if (_M_node->_M_right != y)
+                _M_node = y;
+        }
+    }
+    void _M_decrement() {
+        if (_M_node->_M_is_header)
+            _M_node = (_Link_type)_M_node->_M_right;
+        else if (_M_node->_M_left) {
+            _M_node = (_Link_type)_M_node->_M_left;
+            while (_M_node->_M_right)
+                _M_node = (_Link_type)_M_node->_M_right;
+        } else {
+            _Link_type y = (_Link_type)_M_node->_M_parent;
+            while (_M_node == (_Link_type)y->_M_left) {
+                _M_node = y;
+                y = (_Link_type)y->_M_parent;
+            }
+            if (_M_node->_M_left != y)
+                _M_node = y;
+        }
+    }
+
+    _Link_type _M_node;
 };
 template <class T, class A = std::allocator<T> >
 void swap(BinaryTree<T,A>&, BinaryTree<T,A>&); //optional
