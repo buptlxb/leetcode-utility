@@ -4,6 +4,7 @@
 #include <lc_config.h>
 #include <construct.h>
 #include <cstddef>
+#include <algorithm>
 
 __LC_NAMESPACE_BEGIN
 
@@ -12,13 +13,13 @@ struct _BinaryTreeNodeBase {
     _Base_ptr _M_left;
     _Base_ptr _M_right;
     _Base_ptr _M_parent;
-    _Base_ptr leftmost(_Base_ptr p) {
-        while (p)
+    static _Base_ptr _S_leftmost(_Base_ptr p) {
+        while (p->_M_left)
             p = p->_M_left;
         return p;
     }
-    _Base_ptr rightmost(_Base_ptr p) {
-        while (p)
+    static _Base_ptr _S_rightmost(_Base_ptr p) {
+        while (p->_M_right)
             p = p->_M_right;
         return p;
     }
@@ -56,16 +57,34 @@ public:
 
 public:
     BinaryTree() : _M_header(_M_get_node()), _M_node_count(0), _M_alloc() { _M_empty_initialize(); }
-    BinaryTree(const BinaryTree&);
+    BinaryTree(const BinaryTree &x) : _M_header(_M_get_node()), _M_node_count(0), _M_alloc() {
+        if (x._M_root()) {
+            _M_root() = _M_copy(x._M_root(), _M_header);
+            _M_rightmost() = _S_rightmost(_M_root());
+            _M_leftmost() = _S_leftmost(_M_root());
+            _M_node_count = x._M_node_count;
+        } else
+            _M_empty_initialize();
+    }
     ~BinaryTree() { clear(); _M_put_node(_M_header); }
 
-    BinaryTree& operator=(const BinaryTree&);
-    bool operator==(const BinaryTree&) const;
-    bool operator!=(const BinaryTree&) const;
-    bool operator<(const BinaryTree&) const; //optional
-    bool operator>(const BinaryTree&) const; //optional
-    bool operator<=(const BinaryTree&) const; //optional
-    bool operator>=(const BinaryTree&) const; //optional
+    BinaryTree& operator=(const BinaryTree &x) {
+        if (this != &x) {
+            clear();
+            _M_node_count = 0;
+            if (x._M_root() == nullptr) {
+                _M_root() = 0;
+                _M_leftmost() = _M_header;
+                _M_rightmost() = _M_header;
+            } else {
+                _M_root() = _M_copy(x._M_root(), _M_header);
+                _M_leftmost() = (_Link_type)_S_leftmost(_M_root());
+                _M_rightmost() = (_Link_type)_S_rightmost(_M_root());
+                _M_node_count = x._M_node_count;
+            }
+        }
+        return *this;
+    }
 
     iterator begin() { return _M_leftmost(); }
     const_iterator begin() const { return _M_leftmost(); }
@@ -80,7 +99,7 @@ public:
         return reverse_iterator(end());
     }
     const_reverse_iterator crbegin() const { //optional
-        return reverse_iterator(end());
+        return const_reverse_iterator(cend());
     }
     reverse_iterator rend() { //optional
         return reverse_iterator(begin());
@@ -89,7 +108,7 @@ public:
         return reverse_iterator(begin());
     }
     const_reverse_iterator crend() const { //optional
-        return reverse_iterator(cbegin());
+        return const_reverse_iterator(cbegin());
     }
 
     template<class ...Args>
@@ -105,7 +124,7 @@ public:
                 _S_left(x) = n;
                 _M_leftmost() = n;
             } else if (x->_M_is_header) {
-                x = (_Link_type)x->_M_right;
+                x = _S_right(x);
                 _S_right(x) = n;
                 _M_rightmost() = n;
             } else {
@@ -157,20 +176,20 @@ protected:
     _Link_type _M_create_node(const value_type& x) {
         _Link_type tmp = _M_get_node();
         __LC_TRY {
-            construct(&tmp->_M_value_field, x);
+            construct(&_S_value(tmp), x);
         }
         __LC_UNWIND(_M_put_node(tmp));
         return tmp;
     }
     _Link_type _M_clone_node(_Link_type x) {
-        _Link_type tmp = _M_create_node(x->_M_value_field);
-        tmp->_M_left = nullptr;
-        tmp->_M_right = nullptr;
-        tmp->_M_is_header = false;
+        _Link_type tmp = _M_create_node(_S_value(x));
+        _S_left(tmp) = nullptr;
+        _S_right(tmp) = nullptr;
+        tmp->_M_is_header = x->_M_is_header;
         return tmp;
     }
     void _M_destroy_node(_Link_type p) {
-        destroy(&p->_M_value_field);
+        destroy(&_S_value(p));
         _M_put_node(p);
     }
 
@@ -181,6 +200,27 @@ protected:
             _M_destroy_node(x);
             x = y;
         }
+    }
+    _Link_type _M_copy(_Link_type x, _Link_type p) {
+        _Link_type top = _M_clone_node(x);
+        _S_parent(top) = p;
+        __LC_TRY {
+            if (_S_right(x))
+                _S_right(top) = _M_copy(_S_right(x), top);
+            p = top;
+            x = _S_left(x);
+            while (x) {
+                _Link_type y = _M_clone_node(x);
+                _S_left(p) = y;
+                _S_parent(y) = p;
+                if (_S_right(x))
+                    _S_right(y) = _M_copy(_S_right(x), y);
+                p = y;
+                x = _S_left(x);
+            }
+        }
+        __LC_UNWIND(_M_erase(top));
+        return top;
     }
 
     _Link_type& _M_root() const {
@@ -218,6 +258,12 @@ protected:
     static reference _S_value(_Base_ptr x) {
         return ((_Link_type)x)->_M_value_field;
     }
+    static _Link_type _S_leftmost(_Link_type x) {
+        return (_Link_type)_BinaryTreeNodeBase::_S_leftmost(x);
+    }
+    static _Link_type _S_rightmost(_Link_type x) {
+        return (_Link_type)_BinaryTreeNodeBase::_S_rightmost(x);
+    }
 
 private:
     void _M_empty_initialize() {
@@ -233,6 +279,17 @@ protected:
     allocator_type _M_alloc;
 };
 
+template <typename T, typename A = std::allocator<_BinaryTreeNode<T>> >
+bool operator==(const BinaryTree<T, A> &x, const BinaryTree<T, A> &y) {
+    return std::equal(x.begin(), x.end(), y.begin(), y.end());
+}
+
+template <typename T, typename A = std::allocator<_BinaryTreeNode<T>> >
+bool operator!=(const BinaryTree<T, A> &x, const BinaryTree<T, A> &y) {
+    return !(x == y);
+}
+
+
 template <typename Value, typename Ref, typename Ptr>
 struct bt_iterator { 
     typedef Value value_type;
@@ -246,14 +303,6 @@ struct bt_iterator {
     bt_iterator(_Link_type x) : _M_node(x) {}
     bt_iterator(const bt_iterator& it) { _M_node = it._M_node; }
     // ~iterator();
-
-    // iterator& operator=(const iterator&);
-    friend bool operator==(const bt_iterator &x, const bt_iterator &y) {
-        return x._M_node == y._M_node;
-    }
-    friend bool operator!=(const bt_iterator &x, const bt_iterator &y) {
-        return x._M_node != y._M_node;
-    }
 
     bt_iterator& operator++() {
         _M_increment();
@@ -288,7 +337,7 @@ struct bt_iterator {
                 _M_node = y;
                 y = (_Link_type)y->_M_parent;
             }
-            if (_M_node->_M_right != y)
+            if ((_Link_type)_M_node->_M_right != y)
                 _M_node = y;
         }
     }
@@ -305,7 +354,7 @@ struct bt_iterator {
                 _M_node = y;
                 y = (_Link_type)y->_M_parent;
             }
-            if (_M_node->_M_left != y)
+            if ((_Link_type)_M_node->_M_left != y)
                 _M_node = y;
         }
     }
@@ -313,11 +362,34 @@ struct bt_iterator {
     _Link_type _M_node;
 };
 
+template <typename V, typename R, typename P>
+bool operator==(const bt_iterator<V, R, P> &x, const bt_iterator<V, R, P> &y) {
+    return x._M_node == y._M_node;
+}
+template <typename V, typename R, typename P>
+bool operator!=(const bt_iterator<V, R, P> &x, const bt_iterator<V, R, P> &y) {
+    return x._M_node != y._M_node;
+}
+
+
 template <class T, class A = std::allocator<_BinaryTreeNode<T>> >
 void swap(BinaryTree<T, A> &lhs, BinaryTree<T, A> &rhs) { //optional
     lhs.swap(rhs);
-    //std::swap(lhs._M_header, rhs._M_header);
-    //std::swap(lhs._M_node_count, rhs._M_node_count);
+}
+
+template <typename Value, typename Ref, typename Ptr>
+inline std::bidirectional_iterator_tag iterator_category(const bt_iterator<Value, Ref, Ptr> &) {
+    return std::bidirectional_iterator_tag();
+}
+
+template <typename Value, typename Ref, typename Ptr>
+inline typename bt_iterator<Value, Ref, Ptr>::difference_type* distance_type(const bt_iterator<Value, Ref, Ptr> &) {
+    return static_cast<typename bt_iterator<Value, Ref, Ptr>::difference_type *>(0);
+}
+
+template <typename Value, typename Ref, typename Ptr>
+inline Value * value_type(const bt_iterator<Value, Ref, Ptr> &) {
+    return static_cast<Value *>(0);
 }
 
 __LC_NAMESPACE_END

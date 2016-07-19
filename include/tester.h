@@ -23,7 +23,7 @@ public:
     void cfunction() const {assert(self==this);}
     void mfunction() {assert(self==this);}
     friend std::ostream &operator<< (std::ostream &os, const Tester &t) {
-        os << "tester@" << std::hex << t.self << std::dec;
+        os << typeid(t).name() << "@" << std::hex << t.self << std::dec;
         return os;
     }
 };

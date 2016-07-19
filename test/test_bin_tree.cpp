@@ -10,13 +10,8 @@ int main(void)
     lc::BinaryTree<lc::Tester>::iterator iter = bt.begin();
     for (int i = 0; i < 10; ++i)
         iter = bt.insert(iter, lc::Tester());
-    {
-        lc::BinaryTree<lc::Tester> tmp;
-        tmp.swap(bt);
-        for (auto i = tmp.begin(), iend = tmp.end(); i != iend; ++i)
-            cout << *i << endl;
-        for (auto &b : tmp)
-            cout << b << endl;
-    }
+    auto bt2 = bt;
+    for (auto i = bt.rbegin(), iend = bt.rend(); i != iend; ++i)
+        cout << *i << endl;
     return 0;
 }
