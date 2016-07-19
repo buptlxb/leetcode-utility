@@ -140,7 +140,11 @@ public:
         }
     }
 
-    void swap(BinaryTree&);
+    void swap(BinaryTree &t) {
+        std::swap(_M_header, t._M_header);
+        std::swap(_M_node_count, t._M_node_count);
+    }
+
     size_type size() { return _M_node_count; }
     size_type max_size() { return size_type(-1); }
     bool empty() const { return _M_node_count == 0; }
@@ -308,8 +312,13 @@ struct bt_iterator {
 
     _Link_type _M_node;
 };
-template <class T, class A = std::allocator<T> >
-void swap(BinaryTree<T,A>&, BinaryTree<T,A>&); //optional
+
+template <class T, class A = std::allocator<_BinaryTreeNode<T>> >
+void swap(BinaryTree<T, A> &lhs, BinaryTree<T, A> &rhs) { //optional
+    lhs.swap(rhs);
+    //std::swap(lhs._M_header, rhs._M_header);
+    //std::swap(lhs._M_node_count, rhs._M_node_count);
+}
 
 __LC_NAMESPACE_END
 #endif
