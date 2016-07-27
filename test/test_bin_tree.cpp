@@ -13,5 +13,8 @@ int main(void)
     auto bt2 = bt;
     for (auto i = bt.rbegin(), iend = bt.rend(); i != iend; ++i)
         cout << *i << endl;
+    bt.erase(bt.begin());
+    for (auto i = bt.rbegin(), iend = bt.rend(); i != iend; ++i)
+        cout << *i << endl;
     return 0;
 }

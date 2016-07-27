@@ -147,7 +147,62 @@ public:
     // template<class iter>
     // iterator insert(const_iterator, iter, iter); //optional
     // iterator insert(const_iterator, std::initializer_list<T>); //optional
-    // iterator erase(const_iterator); //optional
+    iterator erase(iterator pos) {//optional
+        iterator ret = pos;
+        ++ret;
+        _Link_type x = (_Link_type)pos._M_node;
+        _Link_type y = _S_parent(x);
+        _Link_type left = _S_left(x);
+        _Link_type right = _S_right(x);
+        if (left && right) {
+            _Link_type z = _S_rightmost(left);
+            if (z != left)
+                _S_right(_S_parent(z)) = nullptr;
+            if (y->_M_is_header)
+                _S_parent(y) = z;
+            else if (_S_left(y) == x)
+                _S_left(y) = z;
+            else if (_S_right(y) == x)
+                _S_right(y) = z;
+            _S_parent(z) = y;
+            _S_left(z) = left;
+            _S_right(z) = right;
+        } else if (left) {
+            if (y->_M_is_header)
+                _S_parent(y) = left;
+            else if (_S_left(y) == x)
+                _S_left(y) = left;
+            else
+                _S_right(y) = left;
+            _S_parent(left) = y;
+            if (_M_rightmost() == x)
+                _M_rightmost() = left;
+        } else if (right) {
+            if (y->_M_is_header)
+                _S_parent(y) = right;
+            else if (_S_left(y) == x)
+                _S_left(y) = right;
+            else
+                _S_right(y) = right;
+            _S_parent(right) = y;
+            if (_M_leftmost() == x)
+                _M_leftmost() = right;
+        } else {
+            if (y->_M_is_header)
+                _S_parent(y) = nullptr;
+            else if (_S_left(y) == x)
+                _S_left(y) = nullptr;
+            else
+                _S_right(y) = nullptr;
+            if (_M_rightmost() == x)
+                _M_rightmost() = y;
+            if (_M_leftmost() == x)
+                _M_leftmost() = y;
+        }
+        --_M_node_count;
+        _M_destroy_node(x);
+        return ret;
+    }
     // iterator erase(const_iterator, const_iterator); //optional
     void clear() { //optional
         if (_M_node_count != 0) {
